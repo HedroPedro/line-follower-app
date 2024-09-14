@@ -3,12 +3,16 @@ package com.carrinho.controle;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
@@ -18,7 +22,14 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.datastore.core.Message;
 
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.security.Permissions;
 import java.security.acl.Permission;
 import java.util.Objects;
@@ -31,6 +42,12 @@ public class MainActivity extends AppCompatActivity {
     private boolean isConnected;
     private BluetoothAdapter bluetoothAdapter;
     private ActivityResultLauncher<Intent> bluetoothActivityResult;
+    private ConnectedThread thread;
+    private Mat imgMat;
+
+    public void setImgMat(Mat imgMat){
+        this.imgMat = imgMat;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,5 +81,57 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+    }
+
+    private static final String APP_TAG = "OPEN_CVV";
+    private Handler handler;
+
+    private interface MessageConstants {
+        public static final int MESSAGE_READ = 0;
+        public static final int MESSAGE_WRITE = 1;
+        public static final int MESSAGE_TOAST = 2;
+    }
+
+    private class ConnectedThread extends Thread {
+        private final BluetoothSocket blueSocket;
+        private final InputStream inputStream;
+        private final OutputStream outputStream;
+        private byte[] buffer;
+
+        public ConnectedThread(BluetoothSocket socket){
+            blueSocket = socket;
+            InputStream tmpIn = null;
+            OutputStream tmpOut = null;
+            try{
+                tmpIn = socket.getInputStream();
+            }catch (Exception e){
+                Log.e(APP_TAG, e.getMessage());
+            }
+
+            try{
+                tmpOut = socket.getOutputStream();
+            }catch (Exception e){
+                Log.e(APP_TAG, e.getMessage());
+            }
+
+            inputStream = tmpIn;
+            outputStream = tmpOut;
+        }
+
+        public void run(){
+            buffer = new byte[1024];
+            int numBytes;
+            while(true){
+                try {
+                    numBytes = inputStream.read(buffer);
+                    Mat imgMat = new Mat(32, 32, CvType.CV_8UC1);
+                    imgMat.put(0, 0, buffer);
+                    setImgMat(imgMat);
+                } catch (IOException e) {
+                    Log.d(APP_TAG,"Input stream foi desconectada", e);
+                }
+
+            }
+        }
     }
 }
