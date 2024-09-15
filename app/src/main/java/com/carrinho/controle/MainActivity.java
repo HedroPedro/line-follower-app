@@ -22,7 +22,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.datastore.core.Message;
 
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -130,7 +129,22 @@ public class MainActivity extends AppCompatActivity {
                 } catch (IOException e) {
                     Log.d(APP_TAG,"Input stream foi desconectada", e);
                 }
+            }
+        }
 
+        public void write(byte[] buffer){
+            try {
+                outputStream.write(buffer);
+            } catch (IOException e) {
+                Log.d(APP_TAG, "Output stream foi desconectada", e);
+            }
+        }
+
+        public void cancel(){
+            try{
+                blueSocket.close();
+            }catch(IOException e){
+                Log.e(APP_TAG, "Nao foi fechado o socket");
             }
         }
     }
