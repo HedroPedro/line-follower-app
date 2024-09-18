@@ -1,50 +1,69 @@
 package com.carrinho.controle;
 
-import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.content.IntentFilter;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.security.Permissions;
-import java.security.acl.Permission;
-import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
+    private static final String APP_TAG = "OPEN_CVV";
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_DISCOVER_BT = 2;
+    private static final int REQUEST_SCAN_BT = 3;
+    private final UUID APP_UUID = new UUID(205, 654);
+    private final BroadcastReceiver incomingPairRequestReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if(BluetoothDevice.ACTION_PAIRING_REQUEST.equals(action)){
+                    
+            }
+        }
+    };
+    
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                String deviceName = device.getName();
+                String deviceHardwareAddress = device.getAddress();
+            }
+        }
+    };
+    private ClientSocketThread blueSocketThread;
     private Button pairBtn;
     private TextView statusBluethootTv;
     private ImageView bluethootIv;
     private boolean isConnected;
     private BluetoothAdapter bluetoothAdapter;
-    private ActivityResultLauncher<Intent> bluetoothActivityResult;
-    private ConnectedThread thread;
     private Mat imgMat;
+    private Set<BluetoothDevice> blueDevicesSet;
 
-    public void setImgMat(Mat imgMat){
+    public void setImgMat(Mat imgMat) {
         this.imgMat = imgMat;
     }
 
@@ -58,23 +77,28 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
         isConnected = false;
         bluethootIv = findViewById(R.id.bluetoothIv);
         statusBluethootTv = findViewById(R.id.statusBluethootTv);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if(bluetoothAdapter == null) {
-            statusBluethootTv.setText("Bluetooth disponível");
-        }else{
-            statusBluethootTv.setText("Bluetooth indisponível");
+        pairBtn = findViewById(R.id.pairBtn);
+        if (bluetoothAdapter == null) {
+            statusBluethootTv.setText("Não tem Bluetooth");
+        } else {
+            statusBluethootTv.setText("Tem Bluetooth");
         }
 
-        pairBtn.setOnClickListener((l) -> {
-            if(!bluetoothAdapter.isEnabled()){
-                Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-
+        pairBtn.setOnClickListener((click) -> {
+            IntentFilter filter = new IntentFilter((BluetoothDevice.ACTION_FOUND));
+            Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+            if (!bluetoothAdapter.isEnabled()) {
+                Intent enbaleBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enbaleBtIntent, REQUEST_ENABLE_BT);
             }
+            startActivityForResult(discoverableIntent, REQUEST_DISCOVER_BT);
+            
         });
-
     }
 
     @Override
@@ -82,69 +106,36 @@ public class MainActivity extends AppCompatActivity {
         super.onStart();
     }
 
-    private static final String APP_TAG = "OPEN_CVV";
-    private Handler handler;
-
-    private interface MessageConstants {
-        public static final int MESSAGE_READ = 0;
-        public static final int MESSAGE_WRITE = 1;
-        public static final int MESSAGE_TOAST = 2;
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(receiver);
+        unregisterReceiver(incomingPairRequestReceiver);
     }
 
-    private class ConnectedThread extends Thread {
+    private class ClientSocketThread extends Thread {
         private final BluetoothSocket blueSocket;
-        private final InputStream inputStream;
-        private final OutputStream outputStream;
-        private byte[] buffer;
+        private final BluetoothDevice blueDevice;
 
-        public ConnectedThread(BluetoothSocket socket){
-            blueSocket = socket;
-            InputStream tmpIn = null;
-            OutputStream tmpOut = null;
+        public ClientSocketThread(BluetoothDevice blueDevice){
+            BluetoothSocket tmpSocket = null;
+            this.blueDevice = blueDevice;
             try{
-                tmpIn = socket.getInputStream();
+                tmpSocket = blueDevice.createRfcommSocketToServiceRecord(APP_UUID);
             }catch (Exception e){
                 Log.e(APP_TAG, e.getMessage());
             }
+            blueSocket = tmpSocket;
+        }
 
+        @Override
+        public void run() {
             try{
-                tmpOut = socket.getOutputStream();
-            }catch (Exception e){
-                Log.e(APP_TAG, e.getMessage());
-            }
-
-            inputStream = tmpIn;
-            outputStream = tmpOut;
-        }
-
-        public void run(){
-            buffer = new byte[1024];
-            int numBytes;
-            while(true){
-                try {
-                    numBytes = inputStream.read(buffer);
-                    Mat imgMat = new Mat(32, 32, CvType.CV_8UC1);
-                    imgMat.put(0, 0, buffer);
-                    setImgMat(imgMat);
-                } catch (IOException e) {
-                    Log.d(APP_TAG,"Input stream foi desconectada", e);
-                }
-            }
-        }
-
-        public void write(byte[] buffer){
-            try {
-                outputStream.write(buffer);
-            } catch (IOException e) {
-                Log.d(APP_TAG, "Output stream foi desconectada", e);
-            }
-        }
-
-        public void cancel(){
-            try{
-                blueSocket.close();
-            }catch(IOException e){
-                Log.e(APP_TAG, "Nao foi fechado o socket");
+                bluetoothAdapter.cancelDiscovery();
+                blueSocket.connect();
+            }catch (IOException e){
+            }catch (SecurityException e){
+                
             }
         }
     }

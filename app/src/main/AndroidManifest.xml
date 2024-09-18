@@ -3,18 +3,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.carrinho.controle">
 
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="true"/>
-
     <uses-permission android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:required="true"
+        android:usesPermissionFlags="neverForLocation"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" android:required="true"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" android:required="true"/>
 
     <application
         android:allowBackup="true"
@@ -35,10 +31,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <provider
-            android:authorities="com.carrinho.controle.FileProvider"
-            android:name="androidx.core.content.FileProvider"/>
     </application>
 
 </manifest>
