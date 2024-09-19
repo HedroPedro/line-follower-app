@@ -21,14 +21,12 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import org.opencv.core.Mat;
-
 import java.io.IOException;
 import java.util.Set;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
-    private static final String APP_TAG = "OPEN_CVV";
+    public static final String APP_TAG = "OPEN_CVV";
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_DISCOVER_BT = 2;
     private static final int REQUEST_SCAN_BT = 3;
@@ -60,12 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView bluethootIv;
     private boolean isConnected;
     private BluetoothAdapter bluetoothAdapter;
-    private Mat imgMat;
     private Set<BluetoothDevice> blueDevicesSet;
-
-    public void setImgMat(Mat imgMat) {
-        this.imgMat = imgMat;
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
