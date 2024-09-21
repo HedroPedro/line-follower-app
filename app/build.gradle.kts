@@ -1,3 +1,5 @@
+import com.android.build.gradle.internal.cxx.logging.lifecycleln
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -47,4 +49,9 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.extensions)
 }
