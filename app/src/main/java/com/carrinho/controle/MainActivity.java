@@ -29,6 +29,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import org.opencv.android.OpenCVLoader;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.Provider;
@@ -38,7 +41,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String APP_TAG = "OPEN_CVV";
+    public static final String APP_TAG = "line_follower";
     private final UUID APP_UUID = new UUID(205, 654);
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -93,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
         view = findViewById(R.id.surfaceView);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         pairBtn = findViewById(R.id.pairBtn);
-        service = new LineFollowerService(this, view);
+        service = new LineFollowerService(this, view, false);
         state = BluetoothState.NOT_ENABLED;
         handler = new Handler();
         permissionResultLauncher.launch(permissionsArray);
@@ -104,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
                 listView.setClickable(true);
                 state = BluetoothState.ENABLED;
                 pairBtn.setText(state.getMsg());
+                service.setCanProcess(false);
                 return;
             }
 
@@ -123,6 +127,8 @@ public class MainActivity extends AppCompatActivity {
                 startActivityLauncher.launch(discoverBtIntent);
                 displayToastMsg("Descobrindo aprelhos...", Toast.LENGTH_SHORT);
             }
+
+
             if(state.getId() == BluetoothState.ENABLED.getId()){
                 List<String> appNames = new ArrayList<>();
                 blueDevicesSet = bluetoothAdapter.getBondedDevices();
@@ -133,6 +139,8 @@ public class MainActivity extends AppCompatActivity {
                     listView.setAdapter(new ArrayAdapter<String>(this, R.layout.list, R.id.listElementText, s));
                 }
             }
+
+            pairBtn.setText(state.getMsg());
         });
 
         blueDevicesSet = bluetoothAdapter.getBondedDevices();
@@ -162,9 +170,15 @@ public class MainActivity extends AppCompatActivity {
                 }
                 state = BluetoothState.CONNECTED;
                 pairBtn.setText(state.getMsg());
+                service.setCanProcess(true);
                 clientSocketThread = new ClientSocketThread(device);
                 clientSocketThread.run();
             }
+
+            if(!OpenCVLoader.initDebug())
+                Log.i(APP_TAG, "Incapaz de carregar o OpenCv");
+            else
+                Log.i(APP_TAG, "OpenCv carregado com sucesso");
         });
     }
 
@@ -219,17 +233,17 @@ public class MainActivity extends AppCompatActivity {
             }catch (SecurityException e) {
                 Log.e(APP_TAG, e.getMessage());
             }
-            System.out.println("Buffer " + out);
+            service.setCanProcess(true);
+            service.setSocket(blueSocket);
             service.setOutStream(out);
-            service.startCamera(MainActivity.this);
-            service.run();
-            state = BluetoothState.ENABLED;
-            pairBtn.setText(state.getMsg());
         }
 
         public void cancel(){
             try {
                 blueSocket.close();
+                state = BluetoothState.ENABLED;
+                pairBtn.setText(state.getMsg());
+                service.setCanProcess(false);
             } catch (IOException e) {
                 Log.e(APP_TAG, e.getMessage());
             }

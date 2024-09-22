@@ -39,7 +39,7 @@ android {
 }
 
 dependencies {
-    implementation("org.openpnp:opencv:4.9.0-0")
+    implementation("com.quickbirdstudios:opencv:4.5.3.0")
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
