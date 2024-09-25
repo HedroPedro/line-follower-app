@@ -2,20 +2,16 @@ package com.carrinho.controle;
 
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.util.Log;
 import android.util.Size;
 
 import androidx.annotation.NonNull;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
-import androidx.camera.core.ImageCapture;
-import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -23,10 +19,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
-import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.imgproc.Moments;
 
@@ -44,6 +38,8 @@ public class LineFollowerService extends Thread{
     private OutputStream outStream;
     private BluetoothSocket socket;
     private Boolean canProcess;
+    private final double maxThreshScalarValue = 10.d;
+    private final double thresholdValue = maxThreshScalarValue/255;
 
     public LineFollowerService(Context context, PreviewView view, Boolean canProcess) {
         imageAnalysis = new ImageAnalysis.Builder().setTargetResolution(new Size(1820, 720))
@@ -55,6 +51,7 @@ public class LineFollowerService extends Thread{
     }
 
     //https://stackoverflow.com/questions/58102717/android-camerax-analyzer-image-with-format-yuv-420-888-to-opencv-mat
+    @NonNull
     private static Mat convertImageProxyToMat(@NonNull ImageProxy img) {
         byte[] nv21;
 
@@ -76,7 +73,6 @@ public class LineFollowerService extends Thread{
         yuv.put(0, 0, nv21);
         Mat rgb = new Mat();
         Imgproc.cvtColor(yuv, rgb, Imgproc.COLOR_YUV2RGB_NV21, 3);
-        Core.rotate(rgb, rgb, Core.ROTATE_90_CLOCKWISE);
         return rgb;
     }
 
@@ -93,55 +89,54 @@ public class LineFollowerService extends Thread{
     }
 
     public void startCamera(MainActivity activity) {
-        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(context), new ImageAnalysis.Analyzer() {
-            @Override
-            public void analyze(@NonNull ImageProxy image) {
-                if (!canProcess) {
-                    image.close();
-                    return;
-                }
-                try {
-                    sleep(1000);
-                } catch (InterruptedException e) {
-                    Log.e(MainActivity.APP_TAG, e.getMessage());
-                }
-                Mat imgMat = convertImageProxyToMat(image);
-                Mat hierarchy = new Mat();
-                Mat mask = new Mat();
-                Moments moments;
-                List<MatOfPoint> contours = new ArrayList<>();
-                int maxValIndx = 0;
-                double maxVal = 0.0f;
+        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(context), image -> {
+            if (!canProcess) {
                 image.close();
-                Core.inRange(imgMat, new Scalar(0.d, 0.d, 0.d), new Scalar(0.019d, 0.019d, 0.019d), mask);
-                Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
-                if (contours.size() > 0) {
-                    maxVal = Imgproc.contourArea(contours.get(0));
-                    for (int contourIdx = 1; contourIdx < contours.size(); contourIdx++) {
-                        double valToCmp = Imgproc.contourArea(contours.get(contourIdx));
-                        if (valToCmp > maxVal) {
-                            maxVal = valToCmp;
-                            maxValIndx = contourIdx;
-                        }
+                return;
+            }
+            try {
+                sleep(1000);
+            } catch (InterruptedException e) {
+                Log.e(MainActivity.APP_TAG, e.getMessage());
+            }
+            Mat imgMat = convertImageProxyToMat(image);
+            image.close();
+            List<MatOfPoint> contours = new ArrayList<>();
+            Mat edges = new Mat();
+            Mat hierarchy = new Mat();
+            Mat range = new Mat();
+            Imgproc.cvtColor(imgMat, imgMat, Imgproc.COLOR_RGB2GRAY);
+//            Imgproc.Canny(imgMat, edges, 50, 150);
+            Core.inRange(imgMat, new Scalar(0.d, 0.d, 0.d), new Scalar(5d, 5d, 5d), range);
+            Imgproc.findContours(range, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+            if (!contours.isEmpty()) {
+                int maxValIndx = 0;
+                double maxVal = Imgproc.contourArea(contours.get(0));
+                for (int contourIdx = 1; contourIdx < contours.size(); contourIdx++) {
+                    double valToCmp = Imgproc.contourArea(contours.get(contourIdx));
+                    if (valToCmp > maxVal) {
+                        maxVal = valToCmp;
+                        maxValIndx = contourIdx;
                     }
-                    moments = Imgproc.moments(contours.get(maxValIndx));
-                    if (moments.get_m00() != 0.d) {
-                        int cx;
-                        cx = (int) (moments.get_m10() / moments.get_m00());
-                        if (cx > 119) {
-                            write("1001".getBytes());//Esquerda
-                            return;
-                        }
-                        if (cx < 120 && cx > 40) {
-                            write("1010".getBytes());//Continua reto
-                            return;
-                        }
-                        write("0110".getBytes());//Direita
+                }
+                Log.i(MainActivity.APP_TAG, "Index maior " + maxValIndx);
+                Moments moments = Imgproc.moments(contours.get(maxValIndx));
+                if (moments.get_m00() != 0.d) {
+                    int cx = (int) (moments.get_m10() / (moments.get_m00()*10));
+                    Log.i(MainActivity.APP_TAG, "cx: " + cx);
+                    if (cx > 139) {
+                        write("L".getBytes());//Esquerda
                         return;
                     }
+                    if (cx < 140 && cx > 40) {
+                        write("U".getBytes());//Continua reto
+                        return;
+                    }
+                    write("R".getBytes());//Direita
+                    return;
                 }
-                write("0000".getBytes());//Pare, não tem linha
             }
+            write("S".getBytes());//Pare, não tem linha
         });
 
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(activity);

@@ -136,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
                     for(BluetoothDevice device : blueDevicesSet){
                         appNames.add(device.getName());
                     }
-                    listView.setAdapter(new ArrayAdapter<String>(this, R.layout.list, R.id.listElementText, s));
+                    listView.setAdapter(new ArrayAdapter<String>(this, R.layout.list, R.id.listElementText, appNames));
                 }
             }
 

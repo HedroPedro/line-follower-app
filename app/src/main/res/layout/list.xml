@@ -6,10 +6,11 @@
     tools:context=".MainActivity">
 
     <TextView
-        android:paddingLeft="12dp"
-        android:paddingVertical="5dp"
+        android:paddingVertical="15dp"
         android:id="@+id/listElementText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=""/>
+        android:text=""
+        android:textSize="26sp"
+        android:textAlignment="center"/>
 </LinearLayout>
